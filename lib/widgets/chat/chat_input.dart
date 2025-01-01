@@ -23,6 +23,7 @@ class ChatInput extends StatefulWidget {
 class _ChatInputState extends State<ChatInput> {
   final TextEditingController _messageController = TextEditingController();
   final ChatService _chatService = ChatService();
+  
 
   @override
   Widget build(BuildContext context) {
@@ -38,10 +39,23 @@ class _ChatInputState extends State<ChatInput> {
                 const Icon(Icons.reply, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    'Replying to: ${widget.replyingTo!.text}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Replying to:',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      Text(
+                        widget.replyingTo!.text ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
                 IconButton(
@@ -96,15 +110,15 @@ class _ChatInputState extends State<ChatInput> {
       await _chatService.createChat(widget.receiverId);
       
       if (widget.replyingTo != null) {
-        await _chatService.replyToMessage(
+        await _chatService.sendMessage(
           widget.receiverId,
-          widget.replyingTo!.messageId,
-          _messageController.text.trim(),
+          text: _messageController.text.trim(),
+          replyTo: widget.replyingTo,
         );
       } else {
         await _chatService.sendMessage(
           widget.receiverId,
-          _messageController.text.trim(),
+          text: _messageController.text.trim(),
         );
       }
 

@@ -113,27 +113,72 @@ class MessageBubble extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-      children: [
-        GestureDetector(
-          onLongPress: () => _showMessageOptions(context),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isMe ? Colors.blue : Colors.grey[300],
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Text(
-              message.text,
-              style: TextStyle(
-                color: isMe ? Colors.white : Colors.black,
-              ),
-            ),
+Widget build(BuildContext context) {
+    // Helper function for deleted message container
+    Widget buildMessageContainer() {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: message.isDeleted
+              ? Colors.transparent
+              : (isMe ? Colors.blue : Colors.grey[300]),
+          border:
+              message.isDeleted ? Border.all(color: Colors.grey[400]!) : null,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          message.isDeleted ? "Message deleted" : (message.text ?? ''),
+          style: TextStyle(
+            color: message.isDeleted
+                ? Colors.grey[600]
+                : (isMe ? Colors.white : Colors.black),
+            fontStyle: message.isDeleted ? FontStyle.italic : FontStyle.normal,
           ),
         ),
-        if (message.reactions?.isNotEmpty ?? false)
+      );
+    }
+
+    return Column(
+      crossAxisAlignment:
+          isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      children: [
+        // Reply indicator only for non-deleted messages
+        if (message.replyTo != null && !message.isDeleted)
+          Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Replying to:',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+                Text(
+                  message.replyText ?? '',
+                  style: const TextStyle(
+                      fontSize: 14, fontStyle: FontStyle.italic),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+      
+        // Message container with conditional gesture detector
+        message.isDeleted
+            ? buildMessageContainer()
+            : GestureDetector(
+                onLongPress: () => _showMessageOptions(context),
+                child: buildMessageContainer(),
+              ),
+      
+        // Reactions only for non-deleted messages
+        if (!message.isDeleted && (message.reactions?.isNotEmpty ?? false))
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Row(
@@ -145,10 +190,7 @@ class MessageBubble extends StatelessWidget {
                 ),
                 Text(
                   ' ${message.reactions!.length}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
             ),

@@ -1,11 +1,15 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:my_chat_app/models/user_model.dart';
 import '../models/message_model.dart';
 
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   String getChatId(String userId1, String userId2) {
     final userIds = [userId1, userId2]..sort();
@@ -42,27 +46,51 @@ class ChatService {
                 senderId: doc.data()['senderId'],
                 text: doc.data()['text'] ?? '',
                 timestamp: DateTime.parse(doc.data()['timestamp']),
+                  replyTo: doc.data()['replyTo'],
+                  replyText: doc.data()['replyText'],
+                  reactions: doc.data()['reactions'] != null
+                      ? Map<String, String>.from(doc.data()['reactions'])
+                      : null,
               ))
           .toList());
 }
 
-  Future<void> sendMessage(String receiverId, String message) async {
+  Future<void> sendMessage(
+    String receiverId, {
+    String? text,
+    File? imageFile,
+    MessageModel? replyTo,
+  }) async {
     final currentUserId = _auth.currentUser!.uid;
     final chatId = getChatId(currentUserId, receiverId);
     final timestamp = DateTime.now();
 
-    final messageDoc = await _firestore
+    String? imageUrl;
+    if (imageFile != null) {
+      imageUrl = await uploadImage(receiverId, imageFile);
+    }
+
+    final messageData = {
+      'senderId': currentUserId,
+      'timestamp': timestamp.toIso8601String(),
+    };
+
+    if (text != null) messageData['text'] = text;
+    if (imageUrl != null) messageData['imageUrl'] = imageUrl;
+
+    if (replyTo != null) {
+      messageData['replyTo'] = replyTo.messageId;
+      messageData['replyText'] = replyTo.text ?? '';
+    }
+
+    await _firestore
         .collection('chats')
         .doc(chatId)
         .collection('messages')
-        .add({
-          'senderId': currentUserId,
-          'text': message,
-          'timestamp': timestamp.toIso8601String(),
-        });
+        .add(messageData);
 
     await _firestore.collection('chats').doc(chatId).update({
-      'lastMessage': message,
+      'lastMessage': text ?? (imageUrl != null ? '[Image]' : ''),
       'lastMessageTime': timestamp.toIso8601String(),
     });
   }
@@ -82,7 +110,8 @@ class ChatService {
         });
   }
 
-  Future<void> replyToMessage(String receiverId, String replyToMessageId, String newMessage) async {
+  Future<void> replyToMessage(
+      String receiverId, MessageModel replyToMessage, String newMessage) async {
     final currentUserId = _auth.currentUser!.uid;
     final chatId = getChatId(currentUserId, receiverId);
     final timestamp = DateTime.now();
@@ -95,7 +124,8 @@ class ChatService {
           'senderId': currentUserId,
           'text': newMessage,
           'timestamp': timestamp.toIso8601String(),
-          'replyTo': replyToMessageId,
+      'replyTo': replyToMessage.messageId,
+      'replyText': replyToMessage.text,
         });
   }
 
@@ -137,5 +167,26 @@ class ChatService {
         .update({
           'reactions.$currentUserId': emoji,
         });
+  }
+
+  Future<String?> uploadImage(String receiverId, File imageFile) async {
+    try {
+      final currentUserId = _auth.currentUser!.uid;
+      final chatId = getChatId(currentUserId, receiverId);
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+      final ref = _storage
+          .ref()
+          .child('chats')
+          .child(chatId)
+          .child('images')
+          .child('IMG_$timestamp.jpg');
+
+      await ref.putFile(imageFile);
+      return await ref.getDownloadURL();
+    } catch (e) {
+      print('Error uploading image: $e');
+      return null;
+    }
   }
 }

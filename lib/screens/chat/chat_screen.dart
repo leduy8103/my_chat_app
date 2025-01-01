@@ -32,6 +32,12 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  void _cancelReply() {
+    setState(() {
+      replyingTo = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -88,21 +94,34 @@ class _ChatScreenState extends State<ChatScreen> {
           }
           final messages = snapshot.data!;
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: ListView.builder(
               reverse: true,
+              physics: const BouncingScrollPhysics(),
               itemCount: messages.length,
               itemBuilder: (context, index) {
                 final message = messages[index];
-                return MessageBubble(
-                  message: message,
-                  isMe: message.senderId == AuthService().currentUser?.uid,
-                  onDelete: (messageId) => _chatService.deleteMessage(
-                    widget.receiver.uid,
-                    messageId,
+                final previousMessage =
+                    index < messages.length - 1 ? messages[index + 1] : null;
+                final bool isSameSender =
+                    previousMessage?.senderId == message.senderId;
+
+                return Padding(
+                  padding: EdgeInsets.only(
+                    top: isSameSender ? 4.0 : 16.0,
+                    bottom: index == 0 ? 8.0 : 0.0,
                   ),
-                  onReaction: _handleReaction,
-                  onReply: _handleReply,
+                  child: MessageBubble(
+                    message: message,
+                    isMe: message.senderId == AuthService().currentUser?.uid,
+                    onDelete: (messageId) => _chatService.deleteMessage(
+                      widget.receiver.uid,
+                      messageId,
+                    ),
+                    onReaction: _handleReaction,
+                    onReply: _handleReply,
+                  ),
                 );
               },
             ),
@@ -122,7 +141,12 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ],
         ),
-        child: ChatInput(receiverId: widget.receiver.uid),
+        child: ChatInput(
+          receiverId: widget.receiver.uid,
+          replyingTo: replyingTo,
+          onCancelReply: _cancelReply,
+          onSend: _cancelReply,
+        ),
       ),
     );
   }
